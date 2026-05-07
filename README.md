@@ -180,7 +180,7 @@ inutiles.
 
 ## Fichiers sensibles
 Ces fichiers sont exclus du dépôt Git via `.gitignore` :
-- `*.pem` → clé privée SSH, ne doit jamais être partagée
+- `*.pem` → clé privée SSH (ne doit jamais être partagée)
 - `*.tfstate` → état Terraform contenant des données sensibles
 - `*.tfstate.backup` → sauvegarde de l'état Terraform
 - `.terraform/` → providers téléchargés localement
