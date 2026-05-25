@@ -14,17 +14,16 @@ resource "aws_instance" "this" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
   key_name               = var.key_name
+  availability_zone = var.availability_zone
   vpc_security_group_ids = [var.sg_id]
   user_data = var.user_data
+
+root_block_device {
+  volume_size = 50
+  volume_type = "gp3"
+}
 
   tags = {
     Name = var.instance_name
   }
-}
-
-# Attache le volume EBS a linstance
-resource "aws_volume_attachment" "this" {
-  device_name = "/dev/sdf"
-  volume_id   = var.ebs_id
-  instance_id = aws_instance.this.id
 }

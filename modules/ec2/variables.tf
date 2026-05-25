@@ -20,13 +20,13 @@ variable "sg_id" {
   type        = string
 }
 
-variable "ebs_id" {
-  description = "ID du volume EBS a attacher"
-  type        = string
-}
-
 variable "user_data" {
   description = "Script a executer au demarrage de lEC2"
   type        = string
   default     = ""
+}
+
+variable "availability_zone" {
+  description = "Zone de disponibilite AWS pour linstance EC2"
+  type        = string
 }
