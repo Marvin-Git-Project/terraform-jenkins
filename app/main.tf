@@ -5,6 +5,7 @@ terraform {
     key     = "jenkins/terraform.tfstate"
     region  = "eu-west-3"
     profile = "default"
+    use_lockfile = true
   }
 
   required_providers {
@@ -73,28 +74,6 @@ resource "aws_volume_attachment" "jenkins_ebs" {
   volume_id    = module.ebs.ebs_id
   instance_id  = module.ec2.instance_id
   force_detach = true
-
-  provisioner "remote-exec" {
-    inline = [
-      "while [ ! -e /dev/nvme1n1 ]; do sleep 1; done",
-      "sudo file -s /dev/nvme1n1 | grep -q 'ext4' || sudo mkfs -t ext4 /dev/nvme1n1",
-      "sudo mkdir -p /mnt/jenkins-data",
-      "sudo mount /dev/nvme1n1 /mnt/jenkins-data",
-      "echo '/dev/nvme1n1 /mnt/jenkins-data ext4 defaults,nofail 0 2' | sudo tee -a /etc/fstab",
-      "sudo mkdir -p /mnt/jenkins-data/docker-volumes",
-      "sudo mkdir -p /etc/docker",
-      "echo '{\"data-root\": \"/mnt/jenkins-data/docker-volumes\"}' | sudo tee /etc/docker/daemon.json",
-      "sudo systemctl restart docker",
-      "cd /opt/jenkins && sudo docker-compose up -d"
-    ]
-
-    connection {
-      type        = "ssh"
-      user        = "ubuntu"
-      private_key = module.key_pair.private_key
-      host        = module.eip.public_ip
-    }
-  }
 }
 
 # Association de lEIP a lEC2 (couplage faible)
