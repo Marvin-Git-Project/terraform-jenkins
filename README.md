@@ -4,8 +4,9 @@
 Ce projet Terraform permet de déployer automatiquement un serveur Jenkins
 conteneurisé (Docker) sur une instance EC2 AWS Ubuntu 22.04 (Jammy).
 L'infrastructure est découpée en 5 modules réutilisables et indépendants.
-Le volume EBS est monté dans l'OS et utilisé comme stockage Docker.
-Le tfstate est stocké sur un backend S3 distant.
+Le volume EBS est monté dans l'OS via `user_data.sh` et utilisé comme
+stockage Docker. Le tfstate est stocké sur un backend S3 distant avec
+verrouillage natif (`use_lockfile`).
 
 ## Architecture
 
@@ -21,14 +22,14 @@ terraform-jenkins/
     ├── main.tf          # Orchestre les 5 modules + attachements (couplage faible)
     ├── variables.tf     # Variables configurables (taille, nom, région, règles SG...)
     ├── outputs.tf       # Affiche l'IP et le DNS à la fin du déploiement
-    ├── user_data.sh     # Script d'installation Docker + Jenkins au démarrage
+    ├── user_data.sh     # Script d'installation EBS + Docker + Jenkins au démarrage
     └── jenkins_ec2.txt  # Fichier généré automatiquement avec l'IP et le DNS
 ```
 
 ## Prérequis
-- Terraform >= 1.0
+- Terraform >= 1.10 (requis pour le native S3 state locking)
 - AWS CLI installé et configuré (`aws configure`)
-- Un compte AWS avec un utilisateur "IAM" disposant des droits "EC2" et "S3"
+- Un compte AWS avec un utilisateur IAM disposant des droits EC2 et S3
 - Les clés d'accès AWS (Access Key ID + Secret Access Key)
 - Un bucket S3 créé pour stocker le tfstate
 
@@ -75,10 +76,12 @@ de 50Go en `gp3`.
   indépendant et réutilisable
 - **Dynamic blocks** : les règles du Security Group sont variabilisées et
   déclarées dans `app/variables.tf`
-- **Remote backend S3** : le `terraform.tfstate` est stocké sur S3 et non
-  en local
-- **Provisioner remote-exec** : monte le volume EBS dans l'OS et configure
-  Docker pour utiliser ce disque comme stockage
+- **Remote backend S3** : le `terraform.tfstate` est stocké sur S3 avec
+  verrouillage natif activé (`use_lockfile = true`) disponible depuis
+  Terraform 1.10+
+- **Montage EBS via user_data.sh** : le volume EBS est formaté, monté sur
+  `/mnt/jenkins-data` et configuré comme stockage Docker directement au
+  démarrage de l'instance, évitant tout problème de timing
 - **Clés et tfstate** exclus du dépôt Git via `.gitignore`
 
 ## Déploiement
@@ -110,16 +113,18 @@ terraform init
 ```bash
 terraform plan
 ```
-Simule le déploiement sans rien créer. Vérifie que les 10 ressources
+Simule le déploiement sans rien créer sur AWS. Vérifie que les 8 ressources
 seront créées sans erreur.
+
+![Terraform plan](screenshots/00_terraform_plan.png)
 
 ### 6. Déployer l'infrastructure
 ```bash
 terraform apply
 ```
-Terraform crée les 10 ressources et affiche à la fin :
+Terraform crée les 8 ressources dans l'ordre et affiche à la fin :
 ```
-Apply complete! Resources: 10 added, 0 changed, 0 destroyed.
+Apply complete! Resources: 8 added, 0 changed, 0 destroyed.
 
 Outputs:
 public_ip  = "XX.XX.XX.XX"
@@ -128,7 +133,8 @@ public_dns = "ec2-XX-XX-XX-XX.eu-west-3.compute.amazonaws.com"
 
 ### 7. Accéder à Jenkins
 Attendre environ 5 minutes que le script `user_data.sh` termine
-l'installation, puis ouvrir dans le navigateur :
+l'installation (montage EBS + Docker + Jenkins), puis ouvrir dans
+le navigateur :
 ```
 http://<public_ip>:8080
 ```
@@ -150,11 +156,14 @@ cat jenkins_ec2.txt
 ```bash
 terraform destroy
 ```
-(À exécuter après chaque session de test pour éviter des frais AWS)
+À exécuter après chaque session de test pour éviter des frais AWS inutiles.
 
 ## Captures d'écran
 
-### Terraform apply — 10 ressources déployées
+### Terraform plan — 8 ressources à créer
+![Terraform plan](screenshots/00_terraform_plan.png)
+
+### Terraform apply — 8 ressources déployées
 ![Terraform apply complet](screenshots/01_terraform_apply_complete.png)
 
 ### Terraform output — IP et DNS générés
